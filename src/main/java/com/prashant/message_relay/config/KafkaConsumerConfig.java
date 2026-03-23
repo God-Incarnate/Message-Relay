@@ -52,5 +52,13 @@ public class KafkaConsumerConfig {
         return factory;
     }
 
-    
+    @Bean
+    public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
+        return new KafkaTemplate<>(producerFactory);
+    }
+
+    @Bean
+    public NewTopic dlqTopicBean() {
+        return TopicBuilder.name(dlqTopic).partitions(1).replicas(1).build();
+    }
 }
