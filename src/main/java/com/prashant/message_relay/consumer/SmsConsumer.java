@@ -22,5 +22,17 @@ public class SmsConsumer {
         groupId = "delivery-engine-group",
         concurrency = "3"
     )
-
+    public void consume(NotificationEvent event,
+                        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+                        @Header(KafkaHeaders.OFFSET) long offset,
+                        Acknowledgment ack) {
+        log.debug("SMS consumer received eventId={} partition={} offset={}", event.getEventId(), partition, offset);
+        try {
+            deliveryService.process(event);
+            ack.acknowledge();
+        } catch (Exception e) {
+            log.error("SMS consumer error eventId={} error={}", event.getEventId(), e.getMessage());
+            // Don't ack — let Kafka retry or DLQ handle it
+        }
+    }
 }
