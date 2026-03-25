@@ -8,5 +8,13 @@ import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfigurat
 @Configuration
 public class ElasticsearchConfig extends ElasticsearchConfiguration {
 
+    @Value("${spring.elasticsearch.uris:http://localhost:9200}")
+    private String elasticsearchUri;
 
+    @Override
+    public ClientConfiguration clientConfiguration() {
+        return ClientConfiguration.builder()
+                .connectedTo(elasticsearchUri.replace("http://", ""))
+                .build();
+    }
 }
