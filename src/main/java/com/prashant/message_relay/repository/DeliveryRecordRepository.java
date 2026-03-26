@@ -12,5 +12,14 @@ import java.util.Optional;
 @Repository
 public interface DeliveryRecordRepository extends MongoRepository<DeliveryRecord, String> {
 
+    Optional<DeliveryRecord> findByEventId(String eventId);
+
+    List<DeliveryRecord> findByClientIdAndStatus(String clientId, DeliveryRecord.DeliveryStatus status);
+
+    List<DeliveryRecord> findByRecipientAndCreatedAtAfter(String recipient, LocalDateTime after);
+
+    List<DeliveryRecord> findByStatusAndAttemptCountLessThan(
+            DeliveryRecord.DeliveryStatus status, int maxAttempts);
+
 
 }
