@@ -22,5 +22,16 @@ public class WhatsAppConsumer {
         groupId = "delivery-engine-group",
         concurrency = "3"
     )
-
+    public void consume(NotificationEvent event,
+                        @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
+                        @Header(KafkaHeaders.OFFSET) long offset,
+                        Acknowledgment ack) {
+        log.debug("WhatsApp consumer received eventId={} partition={} offset={}", event.getEventId(), partition, offset);
+        try {
+            deliveryService.process(event);
+            ack.acknowledge();
+        } catch (Exception e) {
+            log.error("WhatsApp consumer error eventId={}", event.getEventId(), e);
+        }
+    }
 }
