@@ -9,5 +9,13 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface DeliverySearchRepository extends ElasticsearchRepository<DeliveryDocument, String> {
 
+    Page<DeliveryDocument> findByRecipient(String recipient, Pageable pageable);
 
+    Page<DeliveryDocument> findByClientId(String clientId, Pageable pageable);
+
+    Page<DeliveryDocument> findByStatus(String status, Pageable pageable);
+
+    Page<DeliveryDocument> findByClientIdAndStatus(String clientId, String status, Pageable pageable);
+
+    Page<DeliveryDocument> findByChannelAndStatus(String channel, String status, Pageable pageable);
 }
