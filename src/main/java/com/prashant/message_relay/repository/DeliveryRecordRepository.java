@@ -21,5 +21,11 @@ public interface DeliveryRecordRepository extends MongoRepository<DeliveryRecord
     List<DeliveryRecord> findByStatusAndAttemptCountLessThan(
             DeliveryRecord.DeliveryStatus status, int maxAttempts);
 
+    @Query("{ 'status': 'DEAD_LETTERED', 'createdAt': { $gte: ?0 } }")
+    List<DeliveryRecord> findRecentDeadLettered(LocalDateTime since);
 
+    long countByStatus(DeliveryRecord.DeliveryStatus status);
+
+    long countByClientIdAndStatusAndCreatedAtAfter(
+            String clientId, DeliveryRecord.DeliveryStatus status, LocalDateTime after);
 }
