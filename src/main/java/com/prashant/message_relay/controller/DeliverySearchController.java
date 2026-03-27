@@ -67,5 +67,25 @@ public class DeliverySearchController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    /**
+     * DLQ stats endpoint.
+     * GET /api/messages/stats/dlq
+     */
+    @GetMapping("/stats/dlq")
+    public ResponseEntity<Map<String, Object>> dlqStats() {
+        long dlqCount = recordRepository.countByStatus(DeliveryRecord.DeliveryStatus.DEAD_LETTERED);
+        long sentCount = recordRepository.countByStatus(DeliveryRecord.DeliveryStatus.SENT);
+        long pendingCount = recordRepository.countByStatus(DeliveryRecord.DeliveryStatus.PENDING);
+        long total = recordRepository.count();
 
+        double successRate = total > 0 ? (double) sentCount / total * 100 : 0;
+
+        return ResponseEntity.ok(Map.of(
+                "total", total,
+                "sent", sentCount,
+                "deadLettered", dlqCount,
+                "pending", pendingCount,
+                "successRatePct", String.format("%.2f", successRate)
+        ));
+    }
 }
