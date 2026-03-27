@@ -56,5 +56,16 @@ public class DeliverySearchController {
         return ResponseEntity.ok(results);
     }
 
+    /**
+     * Get full delivery record with status history from MongoDB.
+     * GET /api/messages/{eventId}
+     */
+    @GetMapping("/{eventId}")
+    public ResponseEntity<DeliveryRecord> getByEventId(@PathVariable String eventId) {
+        return recordRepository.findByEventId(eventId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
 
 }
