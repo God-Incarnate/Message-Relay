@@ -1,20 +1,11 @@
 package com.prashant.message_relay.config;
 
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.data.elasticsearch.client.ClientConfiguration;
-import org.springframework.data.elasticsearch.client.elc.ElasticsearchConfiguration;
-
-@Configuration
-public class ElasticsearchConfig extends ElasticsearchConfiguration {
-
-    @Value("${spring.elasticsearch.uris:http://localhost:9200}")
-    private String elasticsearchUri;
-
-    @Override
-    public ClientConfiguration clientConfiguration() {
-        return ClientConfiguration.builder()
-                .connectedTo(elasticsearchUri.replace("http://", ""))
-                .build();
-    }
+/**
+ * Elasticsearch configuration removed.
+ *
+ * This file is intentionally left as a no-op placeholder so that builds referencing
+ * this package do not fail during the migration away from Elasticsearch.
+ */
+public final class ElasticsearchConfig {
+    private ElasticsearchConfig() { }
 }

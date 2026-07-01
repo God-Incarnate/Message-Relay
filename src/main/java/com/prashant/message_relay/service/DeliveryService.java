@@ -1,11 +1,9 @@
 package com.prashant.message_relay.service;
 
 
-import com.prashant.message_relay.model.DeliveryDocument;
 import com.prashant.message_relay.model.DeliveryRecord;
 import com.prashant.message_relay.model.NotificationEvent;
 import com.prashant.message_relay.repository.DeliveryRecordRepository;
-import com.prashant.message_relay.repository.DeliverySearchRepository;
 import com.prashant.message_relay.retry.DlqHandler;
 import com.prashant.message_relay.sender.MessageSender;
 import com.prashant.message_relay.sender.MessageSenderFactory;
@@ -26,7 +24,6 @@ public class DeliveryService {
     private final PayloadValidator validator;
     private final MessageSenderFactory senderFactory;
     private final DeliveryRecordRepository recordRepository;
-    private final DeliverySearchRepository searchRepository;
     private final DlqHandler dlqHandler;
     private final Counter successCounter;
     private final Counter failureCounter;
@@ -34,13 +31,11 @@ public class DeliveryService {
     public DeliveryService(PayloadValidator validator,
                            MessageSenderFactory senderFactory,
                            DeliveryRecordRepository recordRepository,
-                           DeliverySearchRepository searchRepository,
                            DlqHandler dlqHandler,
                            MeterRegistry meterRegistry) {
         this.validator = validator;
         this.senderFactory = senderFactory;
         this.recordRepository = recordRepository;
-        this.searchRepository = searchRepository;
         this.dlqHandler = dlqHandler;
         this.successCounter = meterRegistry.counter("delivery.success");
         this.failureCounter = meterRegistry.counter("delivery.failure");
@@ -94,8 +89,7 @@ public class DeliveryService {
         record.addTransition(DeliveryRecord.DeliveryStatus.SENDING, DeliveryRecord.DeliveryStatus.SENT, "Vendor ACK: " + vendorId);
         recordRepository.save(record);
 
-        // Index in Elasticsearch
-        indexToElasticsearch(record);
+        // Elasticsearch removed — indexing skipped
 
         successCounter.increment();
         log.info("Delivered eventId={} channel={} vendorId={}", event.getEventId(), event.getChannel(), vendorId);
@@ -109,31 +103,11 @@ public class DeliveryService {
                 "Exhausted retries: " + ex.getMessage());
         recordRepository.save(record);
 
-        indexToElasticsearch(record);
+        // Elasticsearch removed — indexing skipped
 
         failureCounter.increment();
         dlqHandler.sendToDlq(event, ex.getMessage());
     }
 
-    private void indexToElasticsearch(DeliveryRecord record) {
-        try {
-             DeliveryDocument doc = DeliveryDocument.builder()
-                    .id(record.getId())
-                    .eventId(record.getEventId())
-                    .clientId(record.getClientId())
-                    .recipient(record.getRecipient())
-                    .channel(record.getChannel() != null ? record.getChannel().name() : null)
-                    .templateId(record.getTemplateId())
-                    .status(record.getStatus() != null ? record.getStatus().name() : null)
-                    .attemptCount(record.getAttemptCount())
-                    .failureReason(record.getFailureReason())
-                    .correlationId(record.getCorrelationId())
-                    .createdAt(record.getCreatedAt())
-                    .deliveredAt(record.getDeliveredAt())
-                    .build();
-            searchRepository.save(doc);
-        } catch (Exception e) {
-            log.warn("Failed to index eventId={} to Elasticsearch: {}", record.getEventId(), e.getMessage());
-        }
-    }
+    // indexing removed
 }

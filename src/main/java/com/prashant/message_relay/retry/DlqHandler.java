@@ -16,7 +16,8 @@ public class DlqHandler {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    @Value("${kafka.topics.dlq}")
+    // Default DLQ topic name when not provided via properties
+    @Value("${kafka.topics.dlq:delivery-dlq}")
     private String dlqTopic;
 
     public void sendToDlq(NotificationEvent event, String reason) {

@@ -3,7 +3,9 @@ package com.prashant.message_relay.config;
 import com.prashant.message_relay.model.NotificationEvent;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,7 +13,8 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.*;
 import org.springframework.kafka.listener.ContainerProperties;
-import org.springframework.kafka.support.serializer.JsonDeserializer;
+import org.springframework.kafka.support.serializer.JsonSerializer;
+import com.prashant.message_relay.config.NotificationEventDeserializer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,10 +22,12 @@ import java.util.Map;
 @Configuration
 public class KafkaConsumerConfig {
 
-    @Value("${spring.kafka.bootstrap-servers}")
+    // Default to localhost:9092 for local development if not provided
+    @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
     private String bootstrapServers;
 
-    @Value("${kafka.topics.dlq}")
+    // Default DLQ topic name when not provided via properties
+    @Value("${kafka.topics.dlq:delivery-dlq}")
     private String dlqTopic;
 
     @Bean
@@ -35,11 +40,8 @@ public class KafkaConsumerConfig {
         props.put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 100);
         props.put(ConsumerConfig.SESSION_TIMEOUT_MS_CONFIG, 30000);
 
-        JsonDeserializer<NotificationEvent> deserializer = new JsonDeserializer<>(NotificationEvent.class);
-        deserializer.addTrustedPackages("*");
-        deserializer.setUseTypeHeaders(false);
-
-        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), deserializer);
+        // Use a small custom deserializer (Gson-based) for NotificationEvent
+        return new DefaultKafkaConsumerFactory<>(props, new StringDeserializer(), new NotificationEventDeserializer());
     }
 
     @Bean
@@ -53,6 +55,18 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
+    public ProducerFactory<String, Object> producerFactory() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
+        props.put(ProducerConfig.RETRIES_CONFIG, 3);
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
+        return new DefaultKafkaProducerFactory<>(props);
+    }
+
+    @Bean
     public KafkaTemplate<String, Object> kafkaTemplate(ProducerFactory<String, Object> producerFactory) {
         return new KafkaTemplate<>(producerFactory);
     }
@@ -62,3 +76,5 @@ public class KafkaConsumerConfig {
         return TopicBuilder.name(dlqTopic).partitions(1).replicas(1).build();
     }
 }
+
+
