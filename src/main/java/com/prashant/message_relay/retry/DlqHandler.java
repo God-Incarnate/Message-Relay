@@ -1,6 +1,7 @@
 package com.prashant.message_relay.retry;
 
 import com.prashant.message_relay.model.NotificationEvent;
+import com.prashant.message_relay.validator.PayloadValidator;
 import io.sentry.Sentry;
 import io.sentry.SentryLevel;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.stereotype.Component;
 public class DlqHandler {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final PayloadValidator payloadValidator;
 
     // Default DLQ topic name when not provided via properties
     @Value("${kafka.topics.dlq:delivery-dlq}")
@@ -42,13 +44,14 @@ public class DlqHandler {
     }
 
     private void alertSentry(NotificationEvent event, String reason) {
+        String maskedRecipient = maskRecipient(event);
         try {
             Sentry.withScope(scope -> {
                 scope.setLevel(SentryLevel.ERROR);
                 scope.setTag("eventId", event.getEventId());
                 scope.setTag("channel", event.getChannel() != null ? event.getChannel().name() : "UNKNOWN");
                 scope.setTag("clientId", event.getClientId());
-                scope.setExtra("recipient", event.getRecipient());
+                scope.setExtra("recipient", maskedRecipient);
                 scope.setExtra("templateId", event.getTemplateId());
                 scope.setExtra("correlationId", event.getCorrelationId());
                 scope.setExtra("reason", reason);
@@ -60,5 +63,12 @@ public class DlqHandler {
         } catch (Exception e) {
             log.warn("Sentry alert failed for eventId={}: {}", event.getEventId(), e.getMessage());
         }
+    }
+
+    private String maskRecipient(NotificationEvent event) {
+        if (event == null || event.getRecipient() == null || event.getChannel() == null) {
+            return "****";
+        }
+        return payloadValidator.maskPii(event.getRecipient(), event.getChannel());
     }
 }

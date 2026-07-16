@@ -1,8 +1,15 @@
 package com.prashant.message_relay.controller;
 
+import com.prashant.message_relay.model.DeliveryDocument;
 import com.prashant.message_relay.model.DeliveryRecord;
+import com.prashant.message_relay.model.NotificationEvent;
 import com.prashant.message_relay.repository.DeliveryRecordRepository;
+import com.prashant.message_relay.repository.DeliverySearchRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,8 +19,40 @@ import java.util.Map;
 @RequestMapping("/api/messages")
 @RequiredArgsConstructor
 public class DeliverySearchController {
+    @GetMapping("/search")
+    public ResponseEntity<Page<DeliveryDocument>> search(
+            @RequestParam(required = false) String recipient,
+            @RequestParam(required = false) DeliveryRecord.DeliveryStatus status,
+            @RequestParam(required = false) NotificationEvent.Channel channel,
+            @RequestParam(required = false) String clientId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        String statusValue = status != null ? status.name() : null;
+        String channelValue = channel != null ? channel.name() : null;
+
+        if (clientId != null && status != null) {
+            return ResponseEntity.ok(searchRepository.findByClientIdAndStatus(clientId, statusValue, pageable));
+        }
+        if (channel != null && status != null) {
+            return ResponseEntity.ok(searchRepository.findByChannelAndStatus(channelValue, statusValue, pageable));
+        }
+        if (recipient != null) {
+            return ResponseEntity.ok(searchRepository.findByRecipient(recipient, pageable));
+        }
+        if (clientId != null) {
+            return ResponseEntity.ok(searchRepository.findByClientId(clientId, pageable));
+        }
+        if (status != null) {
+            return ResponseEntity.ok(searchRepository.findByStatus(statusValue, pageable));
+        }
+        return ResponseEntity.ok(searchRepository.findAll(pageable));
+    }
+
 
     private final DeliveryRecordRepository recordRepository;
+    private final DeliverySearchRepository searchRepository;
 
 
     /**

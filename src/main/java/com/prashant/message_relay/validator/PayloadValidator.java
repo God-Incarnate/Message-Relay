@@ -67,10 +67,12 @@ public class PayloadValidator {
         return switch (channel) {
             case SMS, WHATSAPP -> {
                 // +911234567890 → +91****7890
-                if (recipient.length() > 6) {
-                    yield recipient.substring(0, recipient.length() - 6)
-                            + "****"
-                            + recipient.substring(recipient.length() - 4);
+                String digits = recipient.startsWith("+") ? recipient.substring(1) : recipient;
+                if (digits.length() >= 7) {
+                    int countryCodeLength = Math.min(3, Math.max(1, digits.length() - 10));
+                    String countryCode = digits.substring(0, countryCodeLength);
+                    String suffix = digits.substring(digits.length() - 4);
+                    yield (recipient.startsWith("+") ? "+" : "") + countryCode + "****" + suffix;
                 }
                 yield "****";
             }
@@ -80,7 +82,10 @@ public class PayloadValidator {
                 if (atIndex > 2) {
                     yield recipient.substring(0, 2) + "**" + recipient.substring(atIndex);
                 }
-                yield "**" + recipient.substring(Math.min(atIndex, recipient.length()));
+                if (atIndex > 0) {
+                    yield "**" + recipient.substring(atIndex);
+                }
+                yield "****";
             }
         };
     }
