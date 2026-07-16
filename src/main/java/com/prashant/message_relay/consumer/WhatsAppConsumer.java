@@ -29,9 +29,10 @@ public class WhatsAppConsumer {
         log.debug("WhatsApp consumer received eventId={} partition={} offset={}", event.getEventId(), partition, offset);
         try {
             deliveryService.process(event);
-            ack.acknowledge();
         } catch (Exception e) {
-            log.error("WhatsApp consumer error eventId={}", event.getEventId(), e);
+            log.error("WhatsApp consumer unexpected error eventId={} partition={} offset={}", event.getEventId(), partition, offset, e);
+        } finally {
+            ack.acknowledge();
         }
     }
 }

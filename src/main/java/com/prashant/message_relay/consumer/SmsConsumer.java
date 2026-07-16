@@ -26,13 +26,15 @@ public class SmsConsumer {
                         @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
                         @Header(KafkaHeaders.OFFSET) long offset,
                         Acknowledgment ack) {
-        log.debug("SMS consumer received eventId={} partition={} offset={}", event.getEventId(), partition, offset);
+        log.info("SMS consumed eventId={} partition={} offset={}", event.getEventId(), partition, offset);
         try {
             deliveryService.process(event);
-            ack.acknowledge();
         } catch (Exception e) {
-            log.error("SMS consumer error eventId={} error={}", event.getEventId(), e.getMessage());
-            // Don't ack — let Kafka retry or DLQ handle it
+            // process() has its own safety-net catch and should never throw, but guard here
+            // to guarantee we always commit the offset and don't stall the partition.
+            log.error("SMS consumer unexpected error eventId={} partition={} offset={}", event.getEventId(), partition, offset, e);
+        } finally {
+            ack.acknowledge();
         }
     }
 }

@@ -30,9 +30,10 @@ public class PaymentConsumer {
                 event.getEventId(), partition, offset);
         try {
             deliveryService.process(event);
-            ack.acknowledge();
         } catch (Exception e) {
-            log.error("Payment consumer error eventId={} error={}", event.getEventId(), e.getMessage());
+            log.error("Payment consumer unexpected error eventId={} partition={} offset={}", event.getEventId(), partition, offset, e);
+        } finally {
+            ack.acknowledge();
         }
     }
 }

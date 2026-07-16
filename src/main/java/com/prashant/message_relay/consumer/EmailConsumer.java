@@ -29,9 +29,10 @@ public class EmailConsumer {
         log.debug("Email consumer received eventId={} partition={} offset={}", event.getEventId(), partition, offset);
         try {
             deliveryService.process(event);
-            ack.acknowledge();
         } catch (Exception e) {
-            log.error("Email consumer error eventId={}", event.getEventId(), e);
+            log.error("Email consumer unexpected error eventId={} partition={} offset={}", event.getEventId(), partition, offset, e);
+        } finally {
+            ack.acknowledge();
         }
     }
 }

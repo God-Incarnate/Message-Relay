@@ -17,6 +17,8 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -34,6 +36,12 @@ public class DeliveryService {
     private final Counter failureCounter;
     private final Counter validationFailedCounter;
     private final Counter retryAttemptCounter;
+
+    // Self-injection via @Lazy so that @CircuitBreaker / @Retry AOP proxies are
+    // honoured on attemptDelivery() — direct `this.*` calls bypass Spring AOP.
+    @Autowired
+    @Lazy
+    private DeliveryService self;
 
     public DeliveryService(PayloadValidator validator,
                            MessageSenderFactory senderFactory,
@@ -57,36 +65,49 @@ public class DeliveryService {
     }
 
     public void process(NotificationEvent event) {
-        // 1. Validate payload
-        PayloadValidator.ValidationResult validation = validator.validate(event);
-        if (!validation.valid()) {
-            log.warn("Invalid payload eventId={} errors={}", event.getEventId(), validation.errors());
-            validationFailedCounter.increment();
-            // Don't retry invalid payloads — save to DLQ immediately
-            dlqHandler.sendToDlq(event, "VALIDATION_FAILED: " + validation.errors());
-            return;
+        try {
+            // 1. Validate payload
+            PayloadValidator.ValidationResult validation = validator.validate(event);
+            if (!validation.valid()) {
+                log.warn("Invalid payload eventId={} errors={}", event.getEventId(), validation.errors());
+                validationFailedCounter.increment();
+                // Don't retry invalid payloads — save to DLQ immediately
+                dlqHandler.sendToDlq(event, "VALIDATION_FAILED: " + validation.errors());
+                return;
+            }
+
+            // 2. Create delivery record
+            String maskedRecipient = validator.maskPii(event.getRecipient(), event.getChannel());
+            DeliveryRecord record = DeliveryRecord.builder()
+                    .eventId(event.getEventId())
+                    .clientId(event.getClientId())
+                    .recipient(maskedRecipient)
+                    .recipientRaw(event.getRecipient())
+                    .channel(event.getChannel())
+                    .templateId(event.getTemplateId())
+                    .templateParams(event.getTemplateParams())
+                    .status(DeliveryRecord.DeliveryStatus.PENDING)
+                    .correlationId(event.getCorrelationId())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            record.addTransition(null, DeliveryRecord.DeliveryStatus.PENDING, "Created");
+            record = recordRepository.save(record);
+
+            // 3. Send via proxy so @CircuitBreaker / @Retry AOP interceptors fire
+            self.attemptDelivery(event, record);
+
+        } catch (Exception e) {
+            // Safety net: fallback may itself throw (e.g. MongoDB down before record is created).
+            // Ensure we always send to DLQ and return normally so the Kafka consumer can ack.
+            log.error("Unexpected error in process() eventId={} — sending to DLQ", event.getEventId(), e);
+            failureCounter.increment();
+            try {
+                dlqHandler.sendToDlq(event, "PROCESS_ERROR: " + e.getMessage());
+            } catch (Exception dlqEx) {
+                log.error("DLQ send also failed eventId={}", event.getEventId(), dlqEx);
+            }
         }
-
-        // 2. Create delivery record
-        String maskedRecipient = validator.maskPii(event.getRecipient(), event.getChannel());
-        DeliveryRecord record = DeliveryRecord.builder()
-                .eventId(event.getEventId())
-                .clientId(event.getClientId())
-                .recipient(maskedRecipient)
-                .recipientRaw(event.getRecipient())
-                .channel(event.getChannel())
-                .templateId(event.getTemplateId())
-                .templateParams(event.getTemplateParams())
-                .status(DeliveryRecord.DeliveryStatus.PENDING)
-                .correlationId(event.getCorrelationId())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        record.addTransition(null, DeliveryRecord.DeliveryStatus.PENDING, "Created");
-        record = recordRepository.save(record);
-
-        // 3. Send with retry + circuit breaker
-        attemptDelivery(event, record);
     }
 
     @CircuitBreaker(name = "messageSender", fallbackMethod = "deliveryFallback")
