@@ -1,8 +1,10 @@
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: 'spring-boot'
+  - job_name: 'message-relay'
+    metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ['host.docker.internal:9090']
+      - targets: ['host.docker.internal:8090']
 
